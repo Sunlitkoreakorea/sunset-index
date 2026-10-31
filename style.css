@@ -68,6 +68,44 @@ button {
 .loc button, .loc span { color: var(--muted); transition: color 0.15s; }
 .loc button:hover, .loc [aria-pressed="true"], .loc .here { color: var(--text); }
 .loc .busy { animation: blink 1.2s ease-in-out infinite; }
+.loc [data-loc="pick"] { max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 다른 곳 고르기 */
+.pick { margin-top: 18px; }
+.pick-form { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--text); }
+.pick-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* 16px 아래면 아이폰이 확대함 */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.pick-form input:focus-visible { outline: none; }
+.pick-form input::placeholder { color: var(--faint); }
+.pick-form input::-webkit-search-cancel-button { -webkit-appearance: none; }
+#pickClose { font-size: 13px; color: var(--muted); }
+#pickClose:hover { color: var(--text); }
+.pick-list { margin: 0; padding: 0; list-style: none; }
+.pick-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.p-name { font-size: 14px; }
+.p-sub { color: var(--muted); font-size: 12px; text-align: right; }
+.pick-list button:hover .p-name { text-decoration: underline; text-underline-offset: 3px; }
+.p-msg { padding: 11px 0; color: var(--muted); font-size: 13px; }
+.p-attr { padding-top: 8px; color: var(--faint); font-size: 11px; text-align: right; }
 
 /* 첫 화면: 점수 + 7일 */
 .first {

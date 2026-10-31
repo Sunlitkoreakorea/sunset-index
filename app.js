@@ -1,5 +1,5 @@
 // 배포 때마다 index.html의 ?v= 와 함께 올린다 (GitHub Pages가 10분 캐시함)
-import * as K from './core.js?v=6';
+import * as K from './core.js?v=7';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality';
@@ -29,8 +29,8 @@ function start() {
   }
   const saved = readSaved();
   if (saved) {
-    setLoc(saved, { persist: false }); // 지난번 내 위치로 먼저 보여 주고
-    locate({ quiet: true }); // GPS로 다시 잡는다
+    setLoc(saved, { persist: false }); // 지난번 위치로 먼저 보여 주고
+    if (saved.kind === 'gps') locate({ quiet: true }); // 내 위치였으면 GPS로 다시 잡는다
     return;
   }
   setLoc({ ...K.MINSAGO }, { persist: false });
@@ -40,12 +40,35 @@ function bind() {
   $('loc').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.loc === 'pick') {
+      if ($('pick').hidden) openPick();
+      else closePick();
+      return;
+    }
+    closePick();
     clearQuery();
     if (b.dataset.loc === 'gps') locate({ quiet: false });
     else {
       state.locating = false;
       setLoc({ ...K.MINSAGO });
     }
+  });
+  $('pickForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    runSearch();
+  });
+  $('pickClose').addEventListener('click', closePick);
+  $('pick').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePick();
+  });
+  $('pickList').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-i]');
+    const p = b && pickResults[Number(b.dataset.i)];
+    if (!p) return;
+    closePick();
+    clearQuery();
+    state.locating = false;
+    setLoc({ kind: 'custom', name: p.name.slice(0, 30), lat: p.lat, lon: p.lon });
   });
   $('days').addEventListener('click', (e) => {
     const b = e.target.closest('.day');
@@ -99,7 +122,9 @@ function validLL(lat, lon) {
 function readSaved() {
   try {
     const v = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
-    if (v && v.kind === 'gps' && validLL(v.lat, v.lon)) return { kind: 'gps', name: '내 위치', lat: v.lat, lon: v.lon };
+    if (!v || !validLL(v.lat, v.lon)) return null;
+    if (v.kind === 'gps') return { kind: 'gps', name: '내 위치', lat: v.lat, lon: v.lon };
+    if (v.kind === 'custom' && typeof v.name === 'string') return { kind: 'custom', name: v.name.slice(0, 30), lat: v.lat, lon: v.lon };
   } catch {
     /* 저장소를 못 쓰면 민사고로 */
   }
@@ -109,10 +134,113 @@ function readSaved() {
 function persist(loc) {
   try {
     if (loc.kind === 'gps') localStorage.setItem(LS_KEY, JSON.stringify({ kind: 'gps', lat: loc.lat, lon: loc.lon }));
+    else if (loc.kind === 'custom') localStorage.setItem(LS_KEY, JSON.stringify({ kind: 'custom', name: loc.name, lat: loc.lat, lon: loc.lon }));
     else if (loc.kind === 'minsago') localStorage.removeItem(LS_KEY);
   } catch {
     /* 무시 */
   }
+}
+
+/* ---------------- 다른 곳 고르기 (장소 검색) ---------------- */
+
+let pickResults = [];
+let lastSearchAt = 0;
+let searchSeq = 0;
+
+function openPick() {
+  $('pick').hidden = false;
+  renderLoc();
+  $('pickInput').focus();
+  $('pickInput').select();
+}
+
+function closePick() {
+  if ($('pick').hidden) return;
+  $('pick').hidden = true;
+  renderLoc();
+}
+
+function pickMsg(text) {
+  pickResults = [];
+  $('pickList').innerHTML = text ? `<li class="p-msg">${esc(text)}</li>` : '';
+}
+
+async function runSearch() {
+  const q = $('pickInput').value.trim();
+  if (!q) return;
+  const my = ++searchSeq;
+  pickMsg('…');
+  try {
+    const { items, osm } = await searchPlaces(q);
+    if (my !== searchSeq) return;
+    if (!items.length) return pickMsg('결과 없음');
+    pickResults = items;
+    $('pickList').innerHTML =
+      items
+        .map(
+          (p, i) =>
+            `<li><button type="button" data-i="${i}"><span class="p-name">${esc(p.name)}</span><span class="p-sub">${esc(p.sub)}</span></button></li>`,
+        )
+        .join('') + (osm ? '<li class="p-attr">© OpenStreetMap</li>' : '');
+  } catch (e) {
+    if (my !== searchSeq) return;
+    console.error(e);
+    pickMsg('찾지 못했어요');
+  }
+}
+
+// "37.5, 127.0" 같은 좌표는 그대로, 아니면 OpenStreetMap(Nominatim) → 안 되면 Open-Meteo 지명 검색
+async function searchPlaces(q) {
+  const m = q.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+  if (m) {
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (validLL(lat, lon)) return { items: [{ name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, sub: '좌표', lat, lon }], osm: false };
+  }
+  const wait = lastSearchAt + 1100 - Date.now(); // Nominatim 이용 규칙: 1초에 한 번
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastSearchAt = Date.now();
+  try {
+    const j = await getJSON(
+      `https://nominatim.openstreetmap.org/search?${new URLSearchParams({ q, format: 'jsonv2', limit: '8', 'accept-language': 'ko', addressdetails: '1' })}`,
+      12000,
+    );
+    if (!Array.isArray(j)) throw new Error('응답 형식 오류');
+    const items = j.map((r) => ({
+      name: (r.name || String(r.display_name || '').split(',')[0]).trim(),
+      sub: placeSub(r.address),
+      lat: Number(r.lat),
+      lon: Number(r.lon),
+    }));
+    return { items: dedupe(items), osm: true };
+  } catch (e) {
+    console.warn('Nominatim 실패, Open-Meteo 검색으로', e);
+    const j = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({ name: q, count: '8', language: 'ko' })}`, 12000);
+    const items = (j.results || []).map((r) => ({
+      name: r.name,
+      sub: [r.admin1, r.country].filter(Boolean).join(' · '),
+      lat: r.latitude,
+      lon: r.longitude,
+    }));
+    return { items: dedupe(items), osm: false };
+  }
+}
+
+function placeSub(a = {}) {
+  const parts = [a.city || a.county || a.town || a.village || a.municipality, a.province || a.state];
+  if (a.country && a.country_code !== 'kr') parts.push(a.country);
+  return [...new Set(parts.filter(Boolean))].join(' · ');
+}
+
+// 이름이 같고 2km 안이면 하나만
+function dedupe(items) {
+  const out = [];
+  for (const p of items) {
+    if (!p.name || !validLL(p.lat, p.lon)) continue;
+    if (out.some((o) => o.name === p.name && K.haversine(o.lat, o.lon, p.lat, p.lon) < 2)) continue;
+    out.push(p);
+  }
+  return out;
 }
 
 function setLoc(loc, { persist: doSave = true } = {}) {
@@ -282,13 +410,17 @@ function fmtTime(ms, tz, off) {
 
 function renderLoc() {
   const loc = state.loc;
-  const custom = loc?.kind === 'custom' ? `<span class="here">${esc(loc.name)}</span>` : '';
-  const btn = (key, label) => {
-    const on = loc?.kind === key;
+  const open = !$('pick').hidden;
+  const btn = (key, label, on) => {
     const busy = key === 'gps' && state.locating;
-    return `<button type="button" data-loc="${key}" aria-pressed="${on}"${busy ? ' class="busy" aria-busy="true"' : ''}>${label}</button>`;
+    const extra = key === 'pick' ? ` aria-expanded="${open}" title="${esc(label)}"` : '';
+    return `<button type="button" data-loc="${key}" aria-pressed="${on}"${busy ? ' class="busy" aria-busy="true"' : ''}${extra}>${esc(label)}</button>`;
   };
-  $('loc').innerHTML = custom + btn('minsago', '민사고') + btn('gps', '내 위치');
+  const custom = loc?.kind === 'custom';
+  $('loc').innerHTML =
+    btn('minsago', '민사고', loc?.kind === 'minsago') +
+    btn('gps', '내 위치', loc?.kind === 'gps') +
+    btn('pick', custom ? loc.name : '다른 곳', custom || open);
 }
 
 function setHero({ when = ' ', score = '–', dim = true, grade = ' ', color = '', meta = ' ' }) {
@@ -430,7 +562,7 @@ async function render3d(d, m) {
   const my = ++state.req3d;
   if (!scene3d) scene3dMsg('…');
   try {
-    sceneMod ??= await import('./scene3d.js?v=6');
+    sceneMod ??= await import('./scene3d.js?v=7');
     const pts = await getGrid(m);
     if (my !== state.req3d || state.view !== '3d') return;
     if (!scene3d) scene3d = sceneMod.createScene($('scene3d'), { distances: K.DISTANCES });
