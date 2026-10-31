@@ -12,7 +12,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
+  </script>
 </head>
 <body>
   <header class="top">
@@ -32,17 +35,24 @@
 
   <div class="more">
     <section class="blk" id="sectionBlk" hidden>
-      <h2>구름 단면도<span class="h-meta" id="sectionMeta"></span></h2>
+      <div class="blk-head">
+        <h2>구름 단면도</h2>
+        <div class="view" id="view" role="group" aria-label="보기">
+          <button type="button" data-view="2d">2D</button>
+          <button type="button" data-view="3d">3D</button>
+        </div>
+        <span class="h-meta" id="sectionMeta"></span>
+      </div>
       <div id="section"></div>
+      <div id="scene3d" hidden></div>
     </section>
 
-    <section class="blk" id="factorBlk" hidden>
-      <h2>점수 이유</h2>
+    <section class="blk" id="factorBlk" aria-label="점수 이유" hidden>
       <div id="factors"></div>
     </section>
 
     <details class="acc" id="rawBlk" hidden>
-      <summary>예보 원자료</summary>
+      <summary>원자료</summary>
       <div id="raw"></div>
     </details>
 
@@ -67,6 +77,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

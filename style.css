@@ -149,6 +149,32 @@ button {
 }
 .h-meta { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+.blk-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+.blk-head h2 { margin: 0; }
+.blk-head .h-meta { margin-left: auto; font-size: 13px; }
+.view { display: flex; gap: 10px; font-size: 12px; }
+.view button { color: var(--muted); transition: color 0.15s; }
+.view button:hover, .view [aria-pressed="true"] { color: var(--text); }
+.view [aria-pressed="true"] { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+
+#scene3d { position: relative; overflow: hidden; }
+#scene3d canvas { display: block; width: 100%; cursor: grab; }
+#scene3d canvas:active { cursor: grabbing; }
+.s3-labels { position: absolute; inset: 0; pointer-events: none; }
+.s3-labels span { position: absolute; left: 0; top: 0; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.s3-tip {
+  position: absolute;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+}
+.s3-msg { display: grid; place-items: center; height: 240px; color: var(--muted); font-size: 13px; }
+
 #section svg { display: block; width: 100%; height: auto; overflow: visible; }
 #section text { font-family: var(--sans); }
 .t-row { font-size: 12px; fill: var(--muted); }

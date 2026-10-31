@@ -1,5 +1,5 @@
 // 배포 때마다 index.html의 ?v= 와 함께 올린다 (GitHub Pages가 10분 캐시함)
-import * as K from './core.js?v=5';
+import * as K from './core.js?v=6';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality';
@@ -10,7 +10,11 @@ const DAYS = 7;
 const STALE_MS = 30 * 60000;
 
 const $ = (id) => document.getElementById(id);
-const state = { loc: null, model: null, sel: 0, req: 0, locating: false };
+const VIEW_KEY = 'noeul.view.v1';
+const state = { loc: null, model: null, sel: 0, req: 0, locating: false, view: readView(), req3d: 0 };
+let grid = null; // { model, promise } 3D용 옆 칸 구름
+let scene3d = null;
+let sceneMod = null;
 
 /* ---------------- 시작 (실행은 파일 맨 끝에서: 아래 const들이 다 준비된 뒤) ---------------- */
 
@@ -60,6 +64,17 @@ function bind() {
   });
   $('meta').addEventListener('click', (e) => {
     if (e.target.closest('#retry')) load({ keepSel: true });
+  });
+  $('view').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.dataset.view === state.view) return;
+    state.view = b.dataset.view;
+    try {
+      localStorage.setItem(VIEW_KEY, state.view);
+    } catch {
+      /* 무시 */
+    }
+    render();
   });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && state.model && Date.now() - state.model.fetchedAt > STALE_MS) load({ keepSel: true });
@@ -287,6 +302,7 @@ function setHero({ when = ' ', score = '–', dim = true, grade = ' ', color =
 
 function showMore(on) {
   for (const id of ['sectionBlk', 'factorBlk', 'rawBlk']) $(id).hidden = !on;
+  if (!on) scene3d?.stop();
 }
 
 function renderEmpty() {
@@ -333,9 +349,111 @@ function render() {
   const ok = !d.polar && d.res.score != null;
   showMore(ok);
   if (ok) {
-    renderSection(d, m);
+    renderCloud(d, m);
     renderFactors(d);
     renderRaw(d, m);
+  } else scene3d?.stop();
+}
+
+/* ---------------- 구름 단면도: 2D / 3D ---------------- */
+
+function readView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === '3d' ? '3d' : '2d';
+  } catch {
+    return '2d';
+  }
+}
+
+function renderCloud(d, m) {
+  for (const b of $('view').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
+  $('sectionMeta').textContent = `${K.compassKo(m.az)} ${Math.round(m.az)}° · ${fmtTime(d.sample.at, m.tz, m.off)}`;
+  const is3d = state.view === '3d';
+  $('section').hidden = is3d;
+  $('scene3d').hidden = !is3d;
+  if (is3d) render3d(d, m);
+  else {
+    scene3d?.stop();
+    renderSection(d, m);
+  }
+}
+
+const LATERAL = [-100, -50, 0, 50, 100]; // scene3d.js와 같은 값
+
+// 3D용: 해 지는 길 양옆까지 7 × 5 = 35곳 구름 (위치·예보가 바뀔 때만 새로 받음)
+function getGrid(m) {
+  if (grid && grid.model === m) return grid.promise;
+  const pts = [];
+  K.DISTANCES.forEach((km, di) => {
+    const c = km === 0 ? { lat: m.loc.lat, lon: m.loc.lon } : K.destination(m.loc.lat, m.loc.lon, m.az, km);
+    LATERAL.forEach((l, li) => {
+      const p = l === 0 ? c : K.destination(c.lat, c.lon, m.az + (l > 0 ? 90 : -90), Math.abs(l));
+      pts.push({ di, li, lat: p.lat, lon: p.lon });
+    });
+  });
+  const url = `${FORECAST}?${new URLSearchParams({
+    latitude: pts.map((p) => p.lat.toFixed(4)).join(','),
+    longitude: pts.map((p) => p.lon.toFixed(4)).join(','),
+    hourly: 'cloud_cover_low,cloud_cover_mid,cloud_cover_high',
+    timezone: 'auto',
+    timeformat: 'unixtime',
+    past_days: '1',
+    forecast_days: '8',
+  })}`;
+  const promise = getJSON(url).then((j) => {
+    const arr = Array.isArray(j) ? j : [j];
+    if (arr.length !== pts.length || !arr.every((a) => Array.isArray(a?.hourly?.time))) throw new Error('응답 형식 오류');
+    return pts.map((p, i) => ({ ...p, hourly: arr[i].hourly }));
+  });
+  grid = { model: m, promise };
+  promise.catch(() => {
+    if (grid?.promise === promise) grid = null; // 다음에 다시 시도
+  });
+  return promise;
+}
+
+function scene3dMsg(text) {
+  let el = $('scene3d').querySelector('.s3-msg');
+  if (!text) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 's3-msg';
+    $('scene3d').prepend(el);
+  }
+  el.textContent = text;
+}
+
+async function render3d(d, m) {
+  const my = ++state.req3d;
+  if (!scene3d) scene3dMsg('…');
+  try {
+    sceneMod ??= await import('./scene3d.js?v=6');
+    const pts = await getGrid(m);
+    if (my !== state.req3d || state.view !== '3d') return;
+    if (!scene3d) scene3d = sceneMod.createScene($('scene3d'), { distances: K.DISTANCES });
+    scene3dMsg('');
+    const tS = d.sample.at / 1000;
+    const cells = pts.map((p) => {
+      if (p.li === 2) return { di: p.di, li: p.li, low: d.sample.low[p.di], mid: d.sample.mid[p.di], high: d.sample.high[p.di] };
+      const at = (k) => K.interpAt(p.hourly.time, p.hourly[k], tS);
+      return { di: p.di, li: p.li, low: at('cloud_cover_low'), mid: at('cloud_cover_mid'), high: at('cloud_cover_high') };
+    });
+    let worst = 2;
+    for (let i = 3; i < K.DISTANCES.length; i++) if ((d.sample.low[i] ?? -1) > (d.sample.low[worst] ?? -1)) worst = i;
+    scene3d.update(cells, {
+      P: d.res.parts.P,
+      worstKm: K.DISTANCES[worst],
+      sideNames: [K.compassKo(m.az - 90), K.compassKo(m.az + 90)],
+    });
+    scene3d.start();
+  } catch (e) {
+    if (my !== state.req3d) return;
+    console.error(e);
+    scene3d?.stop();
+    scene3dMsg('3D를 불러오지 못했어요');
   }
 }
 
@@ -391,7 +509,6 @@ function renderSection(d, m) {
     <g transform="translate(${x0} ${ground})" style="fill:var(--text)"><circle cy="-13" r="3"/><path d="M-3-8.5h6l-1 8.5h-4z"/></g>
     ${ticks}
   </svg>`;
-  $('sectionMeta').textContent = `${K.compassKo(m.az)} ${Math.round(m.az)}° · ${fmtTime(d.sample.at, m.tz, m.off)}`;
 }
 
 function renderFactors(d) {
