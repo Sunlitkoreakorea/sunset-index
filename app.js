@@ -37,6 +37,7 @@ function start() {
 function bind() {
   for (const b of document.querySelectorAll('.seg-btn')) {
     b.addEventListener('click', () => {
+      clearQuery(); // ?lat=…로 열었어도 버튼을 고르면 새로고침 때 그 선택이 유지되게
       if (b.dataset.loc === 'gps') locate({ quiet: false });
       else {
         state.locating = false;
@@ -66,6 +67,15 @@ function bind() {
 }
 
 /* ---------------- 위치 ---------------- */
+
+function clearQuery() {
+  if (!location.search) return;
+  try {
+    history.replaceState(null, '', location.pathname + location.hash);
+  } catch {
+    /* 무시 */
+  }
+}
 
 function validLL(lat, lon) {
   return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
