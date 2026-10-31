@@ -209,7 +209,7 @@ async function fetchModel(loc) {
     }
     const tS = Math.round(ev.t / 1000) + AFTER_SUNSET_S;
     const at = (a, key) => K.interpAt(a.hourly.time, a.hourly[key], tS);
-    const res = K.scoreSunset({
+    const sample = {
       low: arr.map((a) => at(a, 'cloud_cover_low')),
       mid: arr.map((a) => at(a, 'cloud_cover_mid')),
       high: arr.map((a) => at(a, 'cloud_cover_high')),
@@ -217,10 +217,11 @@ async function fetchModel(loc) {
       vis: at(obs, 'visibility'),
       precip: at(obs, 'precipitation'),
       aod: aq ? at(aq, 'aerosol_optical_depth') : null,
-    });
-    days.push({ ...base, sunset: ev.t, res });
+      at: tS * 1000,
+    };
+    days.push({ ...base, sunset: ev.t, sample, res: K.scoreSunset(sample) });
   }
-  return { loc, tz, off, days, fetchedAt: now };
+  return { loc, pts, az, tz, off, days, fetchedAt: now };
 }
 
 async function load({ keepSel }) {
@@ -283,14 +284,20 @@ function setHero({ when = ' ', score = '–', dim = true, grade = ' ', color =
   $('meta').innerHTML = meta;
 }
 
+function showMore(on) {
+  for (const id of ['sectionBlk', 'factorBlk', 'rawBlk']) $(id).hidden = !on;
+}
+
 function renderEmpty() {
   setHero({});
   $('days').innerHTML = '';
+  showMore(false);
 }
 
 function renderError() {
   setHero({ grade: '예보를 불러오지 못했어요', meta: '<button type="button" id="retry">다시 시도</button>' });
   $('days').innerHTML = '';
+  showMore(false);
 }
 
 function render() {
@@ -321,6 +328,122 @@ function render() {
       return `<button type="button" class="day" data-i="${x.idx}" aria-pressed="${on}" aria-label="${label}" tabindex="${on ? 0 : -1}"><span class="w">${name}</span><span class="s">${s ?? '–'}</span></button>`;
     })
     .join('');
+
+  const ok = !d.polar && d.res.score != null;
+  showMore(ok);
+  if (ok) {
+    renderSection(d, m);
+    renderFactors(d);
+    renderRaw(d, m);
+  }
+}
+
+// 구름 단면도: 왼쪽이 관측 지점, 오른쪽이 해 지는 쪽
+function renderSection(d, m) {
+  const s = d.sample;
+  const P = d.res.parts.P;
+  const x0 = 56;
+  const x1 = 440;
+  const xs = (km) => x0 + (x1 - x0) * Math.sqrt(km / 500);
+  const bounds = [0, 15, 55, 115, 200, 300, 400, 500];
+  const ground = 150;
+  const rows = [
+    { key: 'high', label: '상층', y: 6, h: 40 },
+    { key: 'mid', label: '중층', y: 52, h: 44 },
+    { key: 'low', label: '하층', y: 102, h: 40 },
+  ];
+  let cells = '';
+  let nums = '';
+  for (const row of rows) {
+    cells += `<text x="0" y="${row.y + row.h / 2 + 4}" class="t-row">${row.label}</text>`;
+    for (let i = 0; i < K.DISTANCES.length; i++) {
+      const xa = xs(bounds[i]) + 1;
+      const xb = xs(bounds[i + 1]) - 1;
+      const v = s[row.key][i];
+      const fill = row.key === 'low' ? 'var(--muted)' : 'var(--accent)';
+      const op = v == null || v < 0.5 ? 0 : 0.08 + 0.62 * (v / 100);
+      cells += `<rect x="${xa.toFixed(1)}" y="${row.y}" width="${(xb - xa).toFixed(1)}" height="${row.h}" rx="3" style="fill:${fill};fill-opacity:${op.toFixed(2)};stroke:var(--line)"/>`;
+      nums += `<text x="${((xa + xb) / 2).toFixed(1)}" y="${row.y + row.h / 2 + 4}" class="t-cell">${v == null ? '–' : Math.round(v)}</text>`;
+    }
+  }
+  // 햇빛 길: 해에서 낮게 들어와 관측 지점 위 구름에 닿는 빛
+  const A = [452, ground - 4];
+  const B = [300, ground + 4];
+  const C = [x0 + 8, 49];
+  const good = P >= 0.55;
+  let path = `<path d="M${A} Q${B} ${C}" style="fill:none;stroke:${good ? 'var(--accent)' : 'var(--muted)'}" stroke-width="1.75" stroke-linecap="round"${good ? '' : ' stroke-dasharray="4 4"'}/>`;
+  if (!good) {
+    let worst = 2;
+    for (let i = 3; i < K.DISTANCES.length; i++) if ((s.low[i] ?? -1) > (s.low[worst] ?? -1)) worst = i;
+    const tx = xs(K.DISTANCES[worst]);
+    const ty = quadAtX(A, B, C, tx);
+    path += `<path d="M${tx - 4} ${ty - 4}l8 8m0-8l-8 8" style="stroke:var(--text)" stroke-width="1.75" stroke-linecap="round"/>`;
+  }
+  let ticks = '';
+  K.DISTANCES.forEach((km, i) => {
+    ticks += `<text x="${xs(km).toFixed(1)}" y="${ground + 18}" class="t-tick">${km}${i === K.DISTANCES.length - 1 ? 'km' : ''}</text>`;
+  });
+  $('section').innerHTML = `<svg viewBox="0 0 480 174" role="img" aria-label="해 지는 쪽 450km까지 하층·중층·상층 구름량(%)">
+    ${cells}${path}${nums}
+    <line x1="0" y1="${ground}" x2="480" y2="${ground}" style="stroke:var(--faint)"/>
+    <path d="M452 ${ground}a11 11 0 0 1 22 0z" style="fill:var(--accent)"/>
+    <g transform="translate(${x0} ${ground})" style="fill:var(--text)"><circle cy="-13" r="3"/><path d="M-3-8.5h6l-1 8.5h-4z"/></g>
+    ${ticks}
+  </svg>`;
+  $('sectionMeta').textContent = `${K.compassKo(m.az)} ${Math.round(m.az)}° · ${fmtTime(d.sample.at, m.tz, m.off)}`;
+}
+
+function renderFactors(d) {
+  const p = d.res.parts;
+  const bars = [
+    ['하늘 캔버스', p.C],
+    ['햇빛 길', p.P],
+    ['서쪽 트임', (p.S + p.Z) / 2],
+  ];
+  const mods = [
+    ['공기', p.fH],
+    ['미세먼지', p.fA],
+    ['비', p.fR],
+  ];
+  $('factors').innerHTML =
+    bars
+      .map(([name, v]) => {
+        const n = Math.round(v * 100);
+        return `<div class="factor"><span>${name}</span><span class="f-track"><span class="f-fill" style="width:${n}%"></span></span><span class="f-val">${n}</span></div>`;
+      })
+      .join('') +
+    `<div class="mods">${mods.map(([name, f]) => `<span>${name} <b>×${f.toFixed(2)}</b></span>`).join('')}</div>`;
+}
+
+function renderRaw(d, m) {
+  const s = d.sample;
+  const v = (x) => (x == null ? '–' : Math.round(x));
+  const rows = K.DISTANCES.map((km, i) => `<tr><td>${km} km</td><td>${v(s.low[i])}</td><td>${v(s.mid[i])}</td><td>${v(s.high[i])}</td></tr>`).join('');
+  const obs = [
+    ['기준', fmtTime(s.at, m.tz, m.off)],
+    ['습도', s.rh == null ? '–' : `${Math.round(s.rh)}%`],
+    ['시정', s.vis == null ? '–' : `${(s.vis / 1000).toFixed(1)} km`],
+    ['강수', s.precip == null ? '–' : `${s.precip.toFixed(1)} mm/h`],
+    ['AOD', s.aod == null ? '–' : s.aod.toFixed(2)],
+  ];
+  $('raw').innerHTML = `<table><thead><tr><th>거리</th><th>하층 %</th><th>중층 %</th><th>상층 %</th></tr></thead><tbody>${rows}</tbody></table>
+    <dl class="obs">${obs.map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl>`;
+}
+
+// 2차 베지어 곡선에서 x 위치의 y (수치로 찾기)
+function quadAtX(A, B, C, x) {
+  let best = A[1];
+  let bestDx = Infinity;
+  for (let i = 0; i <= 100; i++) {
+    const t = i / 100;
+    const u = 1 - t;
+    const px = u * u * A[0] + 2 * u * t * B[0] + t * t * C[0];
+    if (Math.abs(px - x) < bestDx) {
+      bestDx = Math.abs(px - x);
+      best = u * u * A[1] + 2 * u * t * B[1] + t * t * C[1];
+    }
+  }
+  return best;
 }
 
 let toastTimer = 0;

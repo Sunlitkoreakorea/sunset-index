@@ -20,14 +20,48 @@
     <nav class="loc" id="loc" aria-label="위치"></nav>
   </header>
 
-  <main class="hero" aria-live="polite">
-    <p class="when" id="when">&nbsp;</p>
-    <p class="score dim" id="score">–</p>
-    <p class="grade" id="grade">&nbsp;</p>
-    <p class="meta" id="meta">&nbsp;</p>
-  </main>
+  <div class="first">
+    <main class="hero" aria-live="polite">
+      <p class="when" id="when">&nbsp;</p>
+      <p class="score dim" id="score">–</p>
+      <p class="grade" id="grade">&nbsp;</p>
+      <p class="meta" id="meta">&nbsp;</p>
+    </main>
+    <nav class="week" id="days" aria-label="날짜"></nav>
+  </div>
 
-  <nav class="week" id="days" aria-label="날짜"></nav>
+  <div class="more">
+    <section class="blk" id="sectionBlk" hidden>
+      <h2>구름 단면도<span class="h-meta" id="sectionMeta"></span></h2>
+      <div id="section"></div>
+    </section>
+
+    <section class="blk" id="factorBlk" hidden>
+      <h2>점수 이유</h2>
+      <div id="factors"></div>
+    </section>
+
+    <details class="acc" id="rawBlk" hidden>
+      <summary>예보 원자료</summary>
+      <div id="raw"></div>
+    </details>
+
+    <details class="acc">
+      <summary>계산 방식</summary>
+      <dl class="how">
+        <dt>표본</dt><dd>해 지는 방향 0·30·80·150·250·350·450 km, 일몰 10분 뒤 예보</dd>
+        <dt>하늘 캔버스</dt><dd>0–150 km 중·상층 구름, 35–75%에서 최고</dd>
+        <dt>햇빛 길</dt><dd>80–450 km 하층 구름, 적을수록 높음</dd>
+        <dt>서쪽 트임</dt><dd>0–150 km 하층 구름, 적을수록 높음</dd>
+        <dt>점수</dt><dd>(25 × 지평선 + 75 × 캔버스 × 햇빛 길 × 트임) × 공기 × 미세먼지 × 비</dd>
+        <dt>공기</dt><dd>습도 65% 이상, 시정 30 km 이하에서 감점 (×0.4–1)</dd>
+        <dt>미세먼지</dt><dd>AOD 0.2–0.35 ×1.05, 많을수록 ×0.7까지</dd>
+        <dt>비</dt><dd>0.1 mm/h부터 감점, 1 mm/h 이상 ×0.35</dd>
+        <dt>등급</dt><dd>0 나쁨 · 20 보통 · 40 좋음 · 60 매우 좋음 · 80 장관</dd>
+        <dt>데이터</dt><dd>Open-Meteo 예보 · CAMS 대기질</dd>
+      </dl>
+    </details>
+  </div>
 
   <footer class="foot"><a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></footer>
 

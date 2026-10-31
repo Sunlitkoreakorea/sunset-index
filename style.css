@@ -9,6 +9,7 @@
   --c-good: #B4561E;
   --c-great: #9F2F2D;
   --c-epic: #982A58;
+  --accent: #C2643A;
   --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
   --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   color-scheme: light;
@@ -26,6 +27,7 @@
     --c-good: #E5925A;
     --c-great: #E5735F;
     --c-epic: #DE779E;
+    --accent: #E0875A;
     color-scheme: dark;
   }
 }
@@ -35,10 +37,6 @@
 html { background: var(--bg); -webkit-text-size-adjust: 100%; }
 
 body {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100svh;
   max-width: 520px;
   margin: 0 auto;
   padding: max(20px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom));
@@ -71,7 +69,14 @@ button {
 .loc button:hover, .loc [aria-pressed="true"], .loc .here { color: var(--text); }
 .loc .busy { animation: blink 1.2s ease-in-out infinite; }
 
-/* 가운데 */
+/* 첫 화면: 점수 + 7일 */
+.first {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 60px);
+  min-height: calc(100svh - 60px - env(safe-area-inset-top));
+}
+
 .hero {
   flex: 1;
   display: flex;
@@ -127,8 +132,56 @@ button {
 .day .w { font-size: 12px; }
 .day .s { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.4; }
 
-/* 아래 */
-.foot { padding-top: 16px; text-align: center; font-size: 11px; }
+/* 아래로 내리면 */
+.more { margin-top: 56px; }
+
+.blk { margin-bottom: 48px; }
+
+.blk h2, .acc summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.h-meta { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+#section svg { display: block; width: 100%; height: auto; overflow: visible; }
+#section text { font-family: var(--sans); }
+.t-row { font-size: 12px; fill: var(--muted); }
+.t-cell { font-size: 11px; fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
+.t-tick { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+
+.factor { display: grid; grid-template-columns: 76px 1fr 28px; gap: 12px; align-items: center; padding: 5px 0; font-size: 14px; }
+.f-track { display: block; height: 3px; background: var(--line); }
+.f-fill { display: block; height: 100%; background: var(--text); }
+.f-val { text-align: right; font-variant-numeric: tabular-nums; }
+.mods { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 14px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mods b { font-weight: 500; color: var(--text); }
+
+.acc { border-top: 1px solid var(--line); }
+.acc:last-child { border-bottom: 1px solid var(--line); }
+.acc summary { margin: 0; padding: 14px 0; cursor: pointer; list-style: none; }
+.acc summary::-webkit-details-marker { display: none; }
+.acc summary::after { content: "+"; font-weight: 400; font-size: 16px; line-height: 1; color: var(--muted); }
+.acc[open] summary::after { content: "−"; }
+.acc > :not(summary) { padding-bottom: 18px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 0; text-align: right; border-bottom: 1px solid var(--line); }
+th { font-weight: 400; color: var(--muted); }
+th:first-child, td:first-child { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+
+.how, .obs { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+.obs { margin-top: 14px; }
+.how dt, .obs dt { color: var(--muted); }
+.how dd, .obs dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* 맨 아래 */
+.foot { padding-top: 28px; text-align: center; font-size: 11px; }
 .foot a { color: var(--faint); text-decoration: none; }
 .foot a:hover { color: var(--muted); }
 
@@ -146,6 +199,13 @@ button {
 }
 
 @keyframes blink { 50% { opacity: 0.35; } }
+
+/* 좁은 화면에서도 단면도 글자는 10px 이상 */
+@media (max-width: 520px) {
+  .t-row { font-size: 16px; }
+  .t-cell { font-size: 15px; stroke-width: 4px; }
+  .t-tick { font-size: 15px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
