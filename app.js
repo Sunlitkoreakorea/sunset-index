@@ -1,4 +1,5 @@
-import * as K from './core.js';
+// 배포 때마다 index.html의 ?v= 와 함께 올린다 (GitHub Pages가 10분 캐시함)
+import * as K from './core.js?v=5';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality';

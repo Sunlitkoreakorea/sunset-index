@@ -73,8 +73,9 @@ button {
 .first {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 60px);
-  min-height: calc(100svh - 60px - env(safe-area-inset-top));
+  /* 아래 "구름 단면도" 제목이 화면 끝에 살짝 보이게 */
+  min-height: calc(100vh - 130px);
+  min-height: calc(100svh - 130px - env(safe-area-inset-top));
 }
 
 .hero {
@@ -133,7 +134,7 @@ button {
 .day .s { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.4; }
 
 /* 아래로 내리면 */
-.more { margin-top: 56px; }
+.more { margin-top: 36px; }
 
 .blk { margin-bottom: 48px; }
 
