@@ -1,0 +1,9 @@
+{
+  "name": "sunset-index",
+  "private": true,
+  "type": "module",
+  "description": "노을 지수 계산기 (정적 사이트)",
+  "scripts": {
+    "test": "node --test test/core.test.js"
+  }
+}

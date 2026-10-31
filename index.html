@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>노을 지수</title>
+  <meta name="description" content="구름 높이·습도·미세먼지 예보로 오늘부터 7일간 저녁노을이 얼마나 예쁠지 0~100점으로 계산합니다. 기본 위치는 민족사관고등학교, 내 위치(GPS)로도 볼 수 있어요.">
+  <meta name="theme-color" content="#16142b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ffcf7a'/%3E%3Cstop offset='1' stop-color='%23f2674a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='20' r='10' fill='url(%23g)'/%3E%3Crect x='2' y='20' width='28' height='10' fill='%2316142b'/%3E%3Crect x='4' y='22' width='24' height='2' rx='1' fill='%23f2674a' opacity='.6'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1 class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="19" r="9" fill="url(#bm)"/><rect x="1" y="19" width="30" height="13" fill="var(--bg-0)"/><path d="M4 22h24M8 25.5h16" stroke="var(--c-great)" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><defs><linearGradient id="bm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf7a"/><stop offset="1" stop-color="#f2674a"/></linearGradient></defs></svg>
+        노을 지수
+      </h1>
+      <div class="seg" role="group" aria-label="위치 고르기">
+        <button type="button" class="seg-btn" data-loc="minsago">민사고</button>
+        <button type="button" class="seg-btn" data-loc="gps">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+          내 위치
+        </button>
+      </div>
+    </header>
+
+    <p class="locline">
+      <span id="locText">민족사관고등학교 (강원 횡성)</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span id="updText">불러오는 중…</span>
+      <button type="button" id="refresh" class="icon-btn" aria-label="예보 새로 받기" title="예보 새로 받기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+      </button>
+    </p>
+
+    <main id="app">
+      <section class="days" id="days" aria-label="날짜 고르기"></section>
+      <section class="hero card" id="hero" aria-live="polite">
+        <div class="loading"><span class="spinner" aria-hidden="true"></span>예보 불러오는 중…</div>
+      </section>
+      <section class="card" id="sectionCard" hidden>
+        <h2>해 지는 쪽 구름 단면</h2>
+        <p class="sub" id="sectionSub"></p>
+        <div id="section"></div>
+      </section>
+      <section class="card" id="factorCard" hidden>
+        <h2>점수가 이렇게 나온 이유</h2>
+        <div id="factors"></div>
+      </section>
+      <details class="card more" id="rawCard" hidden>
+        <summary>예보 원자료 보기</summary>
+        <div id="raw"></div>
+      </details>
+      <details class="card more" id="howCard">
+        <summary>계산 방식</summary>
+        <div class="how">
+          <p>노을은 <b>해가 진 직후, 지평선 아래에서 올라오는 붉은 햇빛이 하늘 높이 뜬 구름에 닿을 때</b> 진해져요. 그래서 이 계산기는 해 지는 방향으로 0·30·80·150·250·350·450&nbsp;km 떨어진 7곳의 구름 예보를 받아 세 가지를 봅니다.</p>
+          <ol>
+            <li><b>하늘 캔버스</b> — 0~150&nbsp;km 안의 중층(3~8&nbsp;km)·상층(8&nbsp;km 위) 구름 양. 35~75%일 때 가장 좋고, 너무 없으면 물들 게 없고 꽉 차면 조금 깎여요.</li>
+            <li><b>햇빛 길</b> — 80~450&nbsp;km 떨어진 해 쪽의 낮은 구름(3&nbsp;km 아래). 해가 지평선 아래 1~3°일 때 구름에 닿는 빛은 이 거리를 낮게 지나오기 때문에, 여기가 막히면 구름이 있어도 안 물들어요.</li>
+            <li><b>서쪽 트임</b> — 머리 위와 서쪽 지평선 가까이의 낮은 구름. 많으면 하늘 자체가 안 보여요.</li>
+          </ol>
+          <p class="formula">점수 = (25 × 지평선 노을 + 75 × 캔버스 × 햇빛 길 × 트임) × 공기 × 미세먼지 × 비</p>
+          <p>구름이 하나도 없는 맑은 날은 지평선만 은은하게 물드는 25점 안팎이 나와요. 공기(습도·시정)는 뿌열수록, 비는 올수록 깎고, 미세먼지(AOD)는 조금 있으면 붉은색이 진해져 최대 5% 더하고 많으면 깎습니다. 예보 시각은 해 진 뒤 10분 기준이에요.</p>
+          <p>점수 구간: 0~19 나쁨 · 20~39 보통 · 40~59 좋음 · 60~79 매우 좋음 · 80~100 장관. 대부분의 날은 낮게 나오니 50점만 넘어도 평균 이상이에요.</p>
+          <p class="muted">주의: 구름 예보 자체가 틀리면 점수도 틀려요. 며칠 뒤일수록 덜 정확하고, 산에 가려 해가 일찍 지는 지형 효과는 계산에 넣지 않았어요.</p>
+        </div>
+      </details>
+    </main>
+
+    <footer class="foot">
+      <p>날씨: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 예보 (CC BY 4.0) · 대기질: Copernicus CAMS (Open-Meteo 경유)</p>
+      <p>점수 공식은 직접 만든 추정식이에요 · <a href="https://github.com/Sunlitkoreakorea/sunset-index" target="_blank" rel="noopener">소스 보기</a></p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
