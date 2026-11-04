@@ -165,10 +165,11 @@ button {
   height: 2px;
   background: transparent;
 }
+.day:nth-child(n + 8) { border-top: 1px solid var(--line); } /* 둘째 주 */
 .day:hover { color: var(--text); }
 .day[aria-pressed="true"] { color: var(--text); }
 .day[aria-pressed="true"]::before { background: var(--text); }
-.day .w { font-size: 12px; }
+.day .w { font-size: 12px; white-space: nowrap; }
 .day .s { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.4; }
 
 /* 아래로 내리면 */

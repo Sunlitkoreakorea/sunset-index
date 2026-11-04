@@ -1,12 +1,12 @@
 // 배포 때마다 index.html의 ?v= 와 함께 올린다 (GitHub Pages가 10분 캐시함)
-import * as K from './core.js?v=8';
+import * as K from './core.js?v=9';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 const HOURLY = ['cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high', 'relative_humidity_2m', 'visibility', 'precipitation'];
 const LS_KEY = 'noeul.loc.v1';
 const AFTER_SUNSET_S = 600; // 해 진 뒤 10분 예보로 계산
-const DAYS = 7;
+const DAYS = 14; // 2주 (Open-Meteo는 16일까지 줌)
 const STALE_MS = 30 * 60000;
 
 const $ = (id) => document.getElementById(id);
@@ -57,9 +57,9 @@ function bind() {
     e.preventDefault();
     runSearch();
   });
-  $('pickClose').addEventListener('click', closePick);
+  $('pickClose').addEventListener('click', () => closePick({ refocus: true }));
   $('pick').addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePick();
+    if (e.key === 'Escape') closePick({ refocus: true });
   });
   $('pickList').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-i]');
@@ -80,6 +80,8 @@ function bind() {
     let i = state.sel;
     if (e.key === 'ArrowRight') i = Math.min(n - 1, i + 1);
     else if (e.key === 'ArrowLeft') i = Math.max(0, i - 1);
+    else if (e.key === 'ArrowDown') i = Math.min(n - 1, i + 7);
+    else if (e.key === 'ArrowUp') i = Math.max(0, i - 7);
     else return;
     e.preventDefault();
     select(i);
@@ -154,10 +156,11 @@ function openPick() {
   $('pickInput').select();
 }
 
-function closePick() {
+function closePick({ refocus = false } = {}) {
   if ($('pick').hidden) return;
   $('pick').hidden = true;
   renderLoc();
+  if (refocus) $('loc').querySelector('[data-loc="pick"]')?.focus(); // 숨긴 입력칸에 초점이 남지 않게
 }
 
 function pickMsg(text) {
@@ -320,7 +323,7 @@ async function fetchModel(loc) {
     timezone: 'auto',
     timeformat: 'unixtime',
     past_days: '1',
-    forecast_days: '8',
+    forecast_days: '16',
   })}`;
   const aqUrl = `${AIR}?${new URLSearchParams({
     latitude: f4(loc.lat),
@@ -472,7 +475,7 @@ function render() {
     .map((x) => {
       const s = x.res?.score;
       const on = x.idx === state.sel;
-      const name = x.idx === 0 ? '오늘' : x.wd;
+      const name = x.idx === 0 ? '오늘' : `${x.wd} ${x.ymd.d}`;
       const label = `${x.ymd.m}월 ${x.ymd.d}일 ${x.wd}요일 ${s == null ? '점수 없음' : `${s}점`}`;
       return `<button type="button" class="day" data-i="${x.idx}" aria-pressed="${on}" aria-label="${label}" tabindex="${on ? 0 : -1}"><span class="w">${name}</span><span class="s">${s ?? '–'}</span></button>`;
     })
@@ -530,7 +533,7 @@ function getGrid(m) {
     timezone: 'auto',
     timeformat: 'unixtime',
     past_days: '1',
-    forecast_days: '8',
+    forecast_days: '16',
   })}`;
   const promise = getJSON(url).then((j) => {
     const arr = Array.isArray(j) ? j : [j];
@@ -562,7 +565,7 @@ async function render3d(d, m) {
   const my = ++state.req3d;
   if (!scene3d) scene3dMsg('…');
   try {
-    sceneMod ??= await import('./scene3d.js?v=8');
+    sceneMod ??= await import('./scene3d.js?v=9');
     const pts = await getGrid(m);
     if (my !== state.req3d || state.view !== '3d') return;
     if (!scene3d) scene3d = sceneMod.createScene($('scene3d'), { distances: K.DISTANCES });

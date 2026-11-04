@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>노을 지수</title>
-  <meta name="description" content="오늘부터 7일간 저녁노을 점수">
+  <meta name="description" content="오늘부터 2주간 저녁노을 점수">
   <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#191918" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 21a10 10 0 0 1 20 0z' fill='%23C2643A'/%3E%3Cpath d='M3 25h26' stroke='%232F3437' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
   <script type="importmap">
   { "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
   </script>
@@ -76,6 +76,7 @@
         <dt>공기</dt><dd>습도 65% 이상, 시정 30 km 이하에서 감점 (×0.4–1)</dd>
         <dt>미세먼지</dt><dd>AOD 0.2–0.35 ×1.05, 많을수록 ×0.7까지</dd>
         <dt>비</dt><dd>0.1 mm/h부터 감점, 1 mm/h 이상 ×0.35</dd>
+        <dt>예보</dt><dd>1–7일은 비교적 믿을 만, 8–14일은 구름 예보가 자주 바뀜</dd>
         <dt>등급</dt><dd>0 나쁨 · 20 보통 · 40 좋음 · 60 매우 좋음 · 80 장관</dd>
         <dt>데이터</dt><dd>Open-Meteo 예보 · CAMS 대기질</dd>
       </dl>
@@ -86,6 +87,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>
