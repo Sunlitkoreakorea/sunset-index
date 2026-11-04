@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
   <script type="importmap">
   { "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
   </script>
@@ -68,8 +68,9 @@
       <summary>계산 방식</summary>
       <dl class="how">
         <dt>표본</dt><dd>해 지는 방향 0·30·80·150·250·350·450 km, 일몰 10분 뒤 예보</dd>
-        <dt>하늘 캔버스</dt><dd>0–150 km 중·상층 구름, 35–75%에서 최고</dd>
-        <dt>햇빛 길</dt><dd>80–450 km 하층 구름, 적을수록 높음</dd>
+        <dt>하늘 캔버스</dt><dd>0–250 km 중층과 상층 구름 양, 35–75%에서 최고</dd>
+        <dt>햇빛 길</dt><dd>머리 위 구름에서 해 쪽으로 빛줄기를 거꾸로 따라가, 해가 0–3° 아래일 때 지나는 높이의 구름(하층, 중층, 상층)에 가리는 정도</dd>
+        <dt>지평선</dt><dd>150–350 km 구름 띠가 빛을 못 받으면 회색 띠로 보고 감점</dd>
         <dt>서쪽 트임</dt><dd>0–150 km 하층 구름, 적을수록 높음</dd>
         <dt>점수</dt><dd>(25 × 지평선 + 75 × 캔버스 × 햇빛 길 × 트임) × 공기 × 미세먼지 × 비</dd>
         <dt>공기</dt><dd>습도 65% 이상, 시정 30 km 이하에서 감점 (×0.4–1)</dd>
@@ -85,6 +86,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=7"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>

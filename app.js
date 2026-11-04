@@ -1,5 +1,5 @@
 // 배포 때마다 index.html의 ?v= 와 함께 올린다 (GitHub Pages가 10분 캐시함)
-import * as K from './core.js?v=7';
+import * as K from './core.js?v=8';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality';
@@ -562,7 +562,7 @@ async function render3d(d, m) {
   const my = ++state.req3d;
   if (!scene3d) scene3dMsg('…');
   try {
-    sceneMod ??= await import('./scene3d.js?v=7');
+    sceneMod ??= await import('./scene3d.js?v=8');
     const pts = await getGrid(m);
     if (my !== state.req3d || state.view !== '3d') return;
     if (!scene3d) scene3d = sceneMod.createScene($('scene3d'), { distances: K.DISTANCES });
@@ -573,8 +573,7 @@ async function render3d(d, m) {
       const at = (k) => K.interpAt(p.hourly.time, p.hourly[k], tS);
       return { di: p.di, li: p.li, low: at('cloud_cover_low'), mid: at('cloud_cover_mid'), high: at('cloud_cover_high') };
     });
-    let worst = 2;
-    for (let i = 3; i < K.DISTANCES.length; i++) if ((d.sample.low[i] ?? -1) > (d.sample.low[worst] ?? -1)) worst = i;
+    const worst = worstBlock(d.sample);
     scene3d.update(cells, {
       P: d.res.parts.P,
       worstKm: K.DISTANCES[worst],
@@ -624,8 +623,7 @@ function renderSection(d, m) {
   const good = P >= 0.55;
   let path = `<path d="M${A} Q${B} ${C}" style="fill:none;stroke:${good ? 'var(--accent)' : 'var(--muted)'}" stroke-width="1.75" stroke-linecap="round"${good ? '' : ' stroke-dasharray="4 4"'}/>`;
   if (!good) {
-    let worst = 2;
-    for (let i = 3; i < K.DISTANCES.length; i++) if ((s.low[i] ?? -1) > (s.low[worst] ?? -1)) worst = i;
+    const worst = worstBlock(s);
     const tx = xs(K.DISTANCES[worst]);
     const ty = quadAtX(A, B, C, tx);
     path += `<path d="M${tx - 4} ${ty - 4}l8 8m0-8l-8 8" style="stroke:var(--text)" stroke-width="1.75" stroke-linecap="round"/>`;
@@ -678,6 +676,21 @@ function renderRaw(d, m) {
   ];
   $('raw').innerHTML = `<table><thead><tr><th>거리</th><th>하층 %</th><th>중층 %</th><th>상층 %</th></tr></thead><tbody>${rows}</tbody></table>
     <dl class="obs">${obs.map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl>`;
+}
+
+// 해 쪽(80~450km)에서 빛을 가장 많이 막는 표본 (하층·중층·상층을 함께 봄)
+function worstBlock(s) {
+  const f = (v) => (v == null ? 0 : v / 100);
+  let worst = 2;
+  let most = -1;
+  for (let i = 2; i < K.DISTANCES.length; i++) {
+    const b = 1 - (1 - 0.9 * f(s.low[i])) * (1 - 0.7 * f(s.mid[i])) * (1 - 0.3 * f(s.high[i]));
+    if (b > most) {
+      most = b;
+      worst = i;
+    }
+  }
+  return worst;
 }
 
 // 2차 베지어 곡선에서 x 위치의 y (수치로 찾기)

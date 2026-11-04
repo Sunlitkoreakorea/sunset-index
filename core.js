@@ -178,10 +178,94 @@ export function compassKo(az) {
 /* ---------------- 노을 점수 ---------------- */
 
 // [표본 번호(DISTANCES의 위치), 가중치]
-const W_CANVAS = [[0, 0.35], [1, 0.3], [2, 0.2], [3, 0.15]]; // 0~150km 중·상층 구름 = 물들 캔버스
-const W_PATH = [[2, 0.1], [3, 0.25], [4, 0.25], [5, 0.25], [6, 0.15]]; // 80~450km 해 쪽 빛길
+const W_CANVAS = [[0, 0.32], [1, 0.27], [2, 0.19], [3, 0.14], [4, 0.08]]; // 0~250km 중·상층 구름 = 물들 캔버스
+const W_BAND = [[3, 0.35], [4, 0.4], [5, 0.25]]; // 150~350km = 서쪽 지평선에 걸리는 구름 띠
+const W_PATH = [[2, 0.1], [3, 0.25], [4, 0.25], [5, 0.25], [6, 0.15]]; // 80~450km 해 쪽 (표시용 하층 평균)
 const W_UP = [[0, 0.6], [1, 0.4]]; // 머리 위 저층 구름
 const W_HORIZON = [[1, 0.25], [2, 0.35], [3, 0.4]]; // 서쪽 지평선 쪽 저층 구름
+
+/* ---------------- 햇빛 길: 빛줄기 거꾸로 따라가기 ----------------
+ * 해가 지평선 아래 0~3°일 때, 머리 위 구름 밑면에 닿는 햇빛을 해 쪽으로 거꾸로 따라간다.
+ * 빛줄기 높이 h(x) = 구름 높이 − x·tan(해 각도) + x²/(2R)  (x: 구름에서 해 쪽으로 간 거리, 지구가 둥근 효과 포함)
+ * 빛줄기가 하층·중층·상층 띠 안을 지나는 동안 그 자리 구름량만큼 가리고, 땅에 닿으면(지구 그림자) 0.
+ * 맑은 하늘에서 같은 계산을 한 값으로 나눠, 지구 그림자 몫은 빼고 구름에 가린 몫만 남긴다.
+ */
+const R_KM = 6371;
+const BANDS = [
+  { lo: 0.5, hi: 2.5, a: 0.9 }, // 하층
+  { lo: 3.5, hi: 6.5, a: 0.7 }, // 중층
+  { lo: 8, hi: 11, a: 0.3 }, // 상층 (얇은 권운이라 빛이 잘 샘)
+];
+const CANVAS_BASE = { mid: 3.5, high: 8 }; // 물드는 구름 밑면 높이(km)
+const SUN_DEP = [[0, 0.4], [0.5, 0.8], [1, 1], [1.5, 1], [2, 1], [2.5, 0.8], [3, 0.6]]; // 해 각도(°), 색 가중
+const RAY_STEP = 5; // km
+const RAY_MAX = 700; // km
+const RAY_EXT = 40; // 꽉 찬 띠를 이 거리(km)만큼 지나면 (1 − a)만 남음
+
+function fillGaps(arr) {
+  return arr.map((v, i) => {
+    if (v != null) return v;
+    let best = null;
+    let bd = Infinity;
+    arr.forEach((w, j) => {
+      if (w != null && Math.abs(i - j) < bd) {
+        bd = Math.abs(i - j);
+        best = w;
+      }
+    });
+    return best ?? 0;
+  });
+}
+
+function coverAt(arr, km) {
+  if (km <= DISTANCES[0]) return arr[0];
+  for (let i = 1; i < DISTANCES.length; i++) {
+    if (km <= DISTANCES[i]) {
+      const f = (km - DISTANCES[i - 1]) / (DISTANCES[i] - DISTANCES[i - 1]);
+      return arr[i - 1] + (arr[i] - arr[i - 1]) * f;
+    }
+  }
+  return arr[arr.length - 1]; // 450km 너머는 마지막 값 유지
+}
+
+/** 한 빛줄기의 투과율(0~1). layers = [하층, 중층, 상층] 구름 비율 배열(DISTANCES 순서) 또는 null(맑은 하늘) */
+export function rayTransmission(layers, startKm, heightKm, depDeg) {
+  const t = Math.tan(depDeg * RAD);
+  let T = 1;
+  for (let x = RAY_STEP / 2; x < RAY_MAX; x += RAY_STEP) {
+    const h = heightKm - x * t + (x * x) / (2 * R_KM);
+    if (h < 0.3) return 0; // 땅(지구 그림자)
+    if (h > BANDS[2].hi && x > R_KM * t) break; // 구름 위로 올라가 다시 안 내려옴
+    if (!layers) continue;
+    for (let b = 0; b < BANDS.length; b++) {
+      if (h >= BANDS[b].lo && h <= BANDS[b].hi) {
+        T *= Math.pow(1 - BANDS[b].a * clamp(coverAt(layers[b], startKm + x), 0, 1), RAY_STEP / RAY_EXT);
+      }
+    }
+    if (T < 1e-4) return 0;
+  }
+  return T;
+}
+
+const clearCache = new Map();
+function clearRay(heightKm, depDeg) {
+  const k = `${heightKm}|${depDeg}`;
+  if (!clearCache.has(k)) clearCache.set(k, rayTransmission(null, 0, heightKm, depDeg));
+  return clearCache.get(k);
+}
+
+/** 그 자리 구름 밑면이 노을빛을 받는 정도(0~1, 맑은 하늘 = 1) */
+export function canvasLight(layers, km, heightKm) {
+  let got = 0;
+  let max = 0;
+  for (const [d, w] of SUN_DEP) {
+    const clear = clearRay(heightKm, d);
+    if (!clear) continue;
+    got += w * rayTransmission(layers, km, heightKm, d);
+    max += w * clear;
+  }
+  return max ? got / max : 0;
+}
 
 function wavg(values, weights) {
   let s = 0;
@@ -195,12 +279,12 @@ function wavg(values, weights) {
   return w >= 0.4 ? s / w : null; // 절반 가까이 비면 판단 보류
 }
 
-/** 중·상층 구름 비율(0~1) → 캔버스 점수(0~1). 35~75%가 가장 좋고, 꽉 차면 조금 깎임 */
+/** 중·상층 구름 비율(0~1) → 캔버스 점수(0~1). 35~75%가 가장 좋고, 꽉 차면 조금 깎임 (꽉 찬 날은 빛길로 갈림) */
 export function canvasCurve(U) {
   if (U <= 0.05) return 0;
   if (U < 0.4) return ((U - 0.05) / 0.35) ** 0.8;
   if (U <= 0.75) return 1;
-  return 1 - (0.45 * (Math.min(U, 1) - 0.75)) / 0.25;
+  return 1 - (0.2 * (Math.min(U, 1) - 0.75)) / 0.25;
 }
 
 /** 습도(%)·시정(m) → 0.4~1 */
@@ -263,20 +347,58 @@ export function scoreSunset(s) {
   const n = DISTANCES.length;
   for (const arr of [L, M, H]) while (arr.length < n) arr.push(null);
 
-  const upper = M.map((m, i) => (m == null && H[i] == null ? null : 1 - (1 - (m ?? 0)) * (1 - (H[i] ?? 0))));
-  const U = wavg(upper, W_CANVAS);
-  const P = wavg(L.map((l, i) => (l == null ? null : (1 - l) * (1 - 0.3 * (M[i] ?? 0)))), W_PATH);
   const Lpath = wavg(L, W_PATH);
   const Lup = wavg(L, W_UP);
   const Lhz = wavg(L, W_HORIZON);
-  if (U == null || P == null || Lup == null || Lhz == null) {
+  const hasUpper = (ws) => ws.reduce((w, [i, wi]) => w + (M[i] != null || H[i] != null ? wi : 0), 0) >= 0.4;
+  if (Lup == null || Lhz == null || Lpath == null || !hasUpper(W_CANVAS)) {
     return { score: null, reason: '구름 예보 자료가 부족해요' };
   }
 
+  // 표본마다: 중·상층 구름 양(위층은 아래층 틈으로 보이는 만큼)과, 그중 노을빛을 받는 양
+  const layers = [fillGaps(L), fillGaps(M), fillGaps(H)];
+  const memo = new Map();
+  const cell = (i) => {
+    if (!memo.has(i)) {
+      const mv = M[i] ?? 0;
+      const hv = (H[i] ?? 0) * (1 - 0.7 * mv);
+      const tm = canvasLight(layers, DISTANCES[i], CANVAS_BASE.mid);
+      const th = canvasLight(layers, DISTANCES[i], CANVAS_BASE.high);
+      memo.set(i, { amt: mv + 0.8 * hv, lit: mv * tm + 0.8 * hv * th, hypo: (tm + th) / 2 });
+    }
+    return memo.get(i);
+  };
+  let U = 0;
+  let amt = 0;
+  let lit = 0;
+  let hypo = 0;
+  let ws = 0;
+  for (const [i, w] of W_CANVAS) {
+    if (M[i] == null && H[i] == null) continue;
+    const c = cell(i);
+    U += w * Math.min(1, c.amt);
+    amt += w * c.amt;
+    lit += w * c.lit;
+    hypo += w * c.hypo;
+    ws += w;
+  }
+  U /= ws;
+  // 햇빛 길: 캔버스 구름이 받는 빛의 비율 (구름이 거의 없으면 '있다면 받을 빛')
+  const P = amt / ws > 0.02 ? lit / amt : hypo / ws;
+  // 지평선에 걸린 구름 띠 중 빛을 못 받아 회색으로 남는 양
+  let dark = 0;
+  let wb = 0;
+  for (const [i, w] of W_BAND) {
+    const c = cell(i);
+    dark += w * Math.max(0, c.amt - c.lit);
+    wb += w;
+  }
+  const G = 1 - 0.6 * Math.min(1, dark / wb);
+
   const C = canvasCurve(U);
   const S = 1 - Lup; // 머리 위 트임
-  const Z = 1 - Lhz; // 서쪽 지평선 트임
-  const glow = 25 * Z * (1 - 0.5 * Lup); // 구름 없이도 생기는 지평선 노을
+  const Z = 1 - Lhz; // 서쪽 지평선 트임 (낮은 구름)
+  const glow = 25 * Z * (1 - 0.5 * Lup) * G; // 구름 없이도 생기는 지평선 노을
   const color = 75 * C * P * S * (0.5 + 0.5 * Z); // 구름이 물드는 몫
   const fH = hazeFactor(num(s.rh), num(s.vis));
   const fA = aerosolFactor(num(s.aod));
@@ -287,7 +409,7 @@ export function scoreSunset(s) {
     score,
     raw,
     grade: grade(score),
-    parts: { U, C, P, S, Z, Lpath, Lup, Lhz, glow, color, fH, fA, fR },
+    parts: { U, C, P, G, S, Z, Lpath, Lup, Lhz, glow, color, fH, fA, fR },
   };
 }
 
@@ -297,7 +419,7 @@ export function explain(res) {
   const p = res.parts;
   if (p.fR < 0.7) return '비가 와서 노을 보기는 어려워요.';
   if (p.S < 0.35) return '머리 위를 낮은 구름이 덮어서 하늘이 잘 안 보여요.';
-  if (p.U >= 0.25 && p.P < 0.4) return '물들 구름은 있지만 해 쪽이 낮은 구름에 막혀 빛이 닿기 어려워요.';
+  if (p.U >= 0.25 && p.P < 0.4) return '물들 구름은 있지만 해 쪽 구름에 막혀 빛이 닿기 어려워요.';
   if (p.Z < 0.4) return '서쪽 지평선 쪽 낮은 구름이 해를 가려요.';
   if (p.U < 0.08) return '하늘이 너무 맑아서 지평선 쪽만 은은하게 물들어요.';
   if (p.fH < 0.75) return '공기가 뿌옇거나 습해서 색이 흐려질 수 있어요.';

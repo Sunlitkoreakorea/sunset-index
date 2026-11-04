@@ -150,9 +150,25 @@ test('대표 상황 점수', () => {
   const clear = K.scoreSunset({ ...base, low: fill(0), mid: fill(0), high: fill(0) });
   assert.equal(clear.score, 25);
   assert.equal(clear.grade.label, '보통');
+  near(clear.parts.P, 1, 1e-9, '맑은 하늘 빛길');
 
-  const ideal = K.scoreSunset({ ...base, low: fill(0), mid: fill(50), high: fill(20) });
+  // 머리 위(0~150km)에 구름, 해 쪽은 맑음 = 교과서적인 좋은 노을
+  const ideal = K.scoreSunset({ ...base, low: fill(0), mid: [50, 50, 50, 50, 0, 0, 0], high: fill(0) });
   assert.ok(ideal.score >= 80, `이상적 ${ideal.score}`);
+  const idealHigh = K.scoreSunset({ ...base, low: fill(0), mid: fill(0), high: [50, 50, 50, 50, 0, 0, 0] });
+  assert.ok(idealHigh.score >= 80, `이상적(상층) ${idealHigh.score}`);
+
+  // 머리 위가 꽉 차도 해 쪽이 트여 있으면 하늘 전체가 물들 수 있음
+  const fireSky = K.scoreSunset({ ...base, low: fill(0), mid: [100, 100, 100, 80, 0, 0, 0], high: fill(0) });
+  assert.ok(fireSky.score >= 65, `머리 위 꽉 + 해 쪽 트임 ${fireSky.score}`);
+
+  // 2026-11-04형: 머리 위 구름은 좋은데 해 쪽 350~450km에 중층 구름 띠 → 빛이 못 들어옴
+  const farDeck = K.scoreSunset({ ...base, low: fill(0), mid: [50, 50, 50, 50, 30, 80, 100], high: fill(0) });
+  assert.ok(farDeck.score <= 40 && farDeck.score < ideal.score - 40, `먼 구름 띠 ${farDeck.score}`);
+  assert.match(K.explain(farDeck), /막혀|가려/);
+
+  const midOvercast = K.scoreSunset({ ...base, low: fill(0), mid: fill(100), high: fill(0) });
+  assert.ok(midOvercast.score <= 20, `중층 꽉 ${midOvercast.score}`);
 
   const overcastLow = K.scoreSunset({ ...base, low: fill(100), mid: fill(50), high: fill(50) });
   assert.equal(overcastLow.score, 0);
@@ -162,12 +178,36 @@ test('대표 상황 점수', () => {
   assert.ok(blocked.score < 20, `막힘 ${blocked.score}`);
   assert.match(K.explain(blocked), /막혀|가려/);
 
-  const rainy = K.scoreSunset({ ...base, precip: 2, low: fill(0), mid: fill(50), high: fill(20) });
+  const rainy = K.scoreSunset({ ...base, precip: 2, low: fill(0), mid: [50, 50, 50, 50, 0, 0, 0], high: fill(0) });
   assert.ok(rainy.score < ideal.score * 0.4, `비 ${rainy.score}`);
   assert.match(K.explain(rainy), /비/);
+});
 
-  const highOvercast = K.scoreSunset({ ...base, low: fill(0), mid: fill(0), high: fill(100) });
-  assert.ok(highOvercast.score > 50 && highOvercast.score < ideal.score, `상층 꽉 ${highOvercast.score}`);
+test('2026-11-04 민사고 실제 예보값: 예전 공식 83점 → 새 공식은 보통 이하', () => {
+  // 해 진 뒤 10분 예보 (해 쪽 350~450km 서해 위에 중·상층 구름 띠, 근처 공항은 5km 높이 중층 BKN 관측)
+  const s = {
+    low: fill(0), mid: [8, 15, 16, 18, 32, 63, 96], high: [20, 25, 26, 30, 37, 41, 90],
+    rh: 68, vis: 39700, precip: 0, aod: 0.22,
+  };
+  const r = K.scoreSunset(s);
+  assert.ok(r.score < 40, `11/4 ${r.score}`);
+  assert.ok(r.parts.P < 0.4, `빛길 ${r.parts.P}`);
+});
+
+test('광선 추적: 맑으면 1, 지구 그림자, 구름이 늘면 줄어듦', () => {
+  const zero = [fill(0), fill(0), fill(0)];
+  near(K.canvasLight(zero, 0, 3.5), 1, 1e-9);
+  near(K.canvasLight(zero, 150, 8), 1, 1e-9);
+  // 3.5km 높이 구름은 해가 2.5° 아래면 지구 그림자에 들어감 (√(2h/R) ≈ 1.9°)
+  assert.equal(K.rayTransmission(null, 0, 3.5, 2.5), 0);
+  assert.ok(K.rayTransmission(null, 0, 8, 2.5) > 0);
+  // 같은 빛줄기에서 먼 중층 구름이 늘면 투과율이 줄어든다
+  const t1 = K.rayTransmission([fill(0), [0, 0, 0, 0, 0, 0.3, 0.3], fill(0)], 0, 3.5, 1.5);
+  const t2 = K.rayTransmission([fill(0), [0, 0, 0, 0, 0, 0.9, 0.9], fill(0)], 0, 3.5, 1.5);
+  assert.ok(t2 < t1 && t1 < 1, `${t1} ${t2}`);
+  // 범위를 벗어난 값이 들어와도 0~1을 지킨다
+  const t3 = K.rayTransmission([fill(0), [0, 0, 0, 0, 0, 30, 30], fill(0)], 0, 3.5, 1.5);
+  assert.ok(t3 >= 0 && t3 <= 1, `${t3}`);
 });
 
 test('자료가 비면 판단을 보류하거나 남은 자료로 계산한다', () => {
@@ -221,12 +261,17 @@ test('낮은 구름·비·뿌연 공기가 늘면 점수는 절대 오르지 않
     assert.ok(K.scoreSunset({ ...s, precip: s.precip + 0.5 }).raw <= before + 1e-9, '비');
     assert.ok(K.scoreSunset({ ...s, vis: s.vis * 0.5 }).raw <= before + 1e-9, '시정');
     assert.ok(K.scoreSunset({ ...s, rh: Math.min(100, s.rh + 10) }).raw <= before + 1e-9, '습도');
+    // 캔버스 밖(350·450km) 해 쪽 중·상층 구름이 늘어도 점수는 오르지 않는다
+    const j = 5 + Math.floor(r() * 2);
+    const key = r() < 0.5 ? 'mid' : 'high';
+    const far = { ...s, [key]: s[key].map((v, k) => (k === j ? Math.min(100, v + 25) : v)) };
+    assert.ok(K.scoreSunset(far).raw <= before + 1e-9, `먼 ${key} ${j}`);
   }
 });
 
 test('보정 함수들이 경계에서 끊기지 않고 범위 안에 있다', () => {
   for (const x of [0.05, 0.4, 0.75]) near(K.canvasCurve(x - 1e-9), K.canvasCurve(x + 1e-9), 1e-6, `canvas ${x}`);
-  near(K.canvasCurve(1), 0.55, 1e-9);
+  near(K.canvasCurve(1), 0.8, 1e-9);
   assert.equal(K.canvasCurve(0), 0);
   for (let a = 0; a <= 2; a += 0.01) {
     const f = K.aerosolFactor(a);
